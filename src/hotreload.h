@@ -5,6 +5,8 @@
 #if HOTRELOAD
 #include <cstdio>
 #include <dlfcn.h>
+#include <filesystem>
+#include <string>
 #include <sys/stat.h>
 
 #define X(NAME, ARGS, RETURN_TYPE) typedef RETURN_TYPE(*NAME##_t) ARGS;
@@ -21,26 +23,54 @@ UI_ENTRY_FUNCTIONS
 static bool hotreload(const char *path) {
 	static struct stat statbuf;
 	static time_t last_mtime = 0;
+	static long last_mtime_nsec = 0;
 	static void *handle = nullptr;
 
 	if (0 == stat(path, &statbuf)) {
 		if (statbuf.st_size == 0) {
 			return true;
 		}
-		if (handle != nullptr && last_mtime == statbuf.st_mtime) {
+		if (handle != nullptr && last_mtime == statbuf.st_mtime &&
+		    last_mtime_nsec == statbuf.st_mtim.tv_nsec) {
 			return true;
 		}
 		last_mtime = statbuf.st_mtime;
+		last_mtime_nsec = statbuf.st_mtim.tv_nsec;
 	} else if (handle != nullptr) {
 		// Missing path after at least one successful load is not fatal.
 		return true;
 	}
 
-	printf("loading hotreload module: %s\t", path);
+#if !__ANDROID__
+	std::string load_path = path;
+	{
+		std::error_code ec;
+		namespace fs = std::filesystem;
+		const fs::path src(path);
+		const fs::path shadow_dir = src.parent_path() / ".hotreload-cache";
+		fs::create_directories(shadow_dir, ec);
+		if (!ec) {
+			const fs::path shadow_path =
+			      shadow_dir / (src.filename().string() + "." +
+			                    std::to_string((long long)last_mtime) + "." +
+			                    std::to_string(last_mtime_nsec));
+			fs::copy_file(src, shadow_path, fs::copy_options::overwrite_existing,
+			              ec);
+			if (!ec) {
+				load_path = shadow_path.string();
+			}
+		}
+	}
+	const char *load_cstr = load_path.c_str();
+#else
+	const char *load_cstr = path;
+#endif
+
+	printf("loading hotreload module: %s\t", load_cstr);
 	if (handle) {
 		dlclose(handle);
 	}
-	handle = dlopen(path, RTLD_LAZY);
+	handle = dlopen(load_cstr, RTLD_LAZY);
 	if (!handle) {
 		fprintf(stderr, "dlopen() failed: %s\n", dlerror());
 		return false;

@@ -102,6 +102,7 @@ if(USE_HOTRELOAD)
     target_include_directories(imgui_shared PRIVATE src/imgui)
     target_include_directories(imgui_shared PRIVATE SDL/include)
     target_link_libraries(app_hotreload PUBLIC imgui_shared)
+    add_dependencies(${EXECUTABLE_NAME} app_hotreload)
 
     # Use static UI path outside Debug builds even on hotreload-capable platforms.
     target_sources(${EXECUTABLE_NAME}
