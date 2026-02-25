@@ -1,5 +1,6 @@
 #include "SDL3/SDL_events.h"
 #include "SDL3/SDL_log.h"
+#include "SDL3/SDL_video.h"
 #include <cstdio>
 #include <string>
 #define SDL_MAIN_USE_CALLBACKS // This is necessary for the new callbacks API.
@@ -199,16 +200,14 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
 
 	ImGui::StyleColorsLight();
 
-#if defined(__ANDROID__) || defined(__APPLE__) && TARGET_OS_IPHONE == 1
 	// --- MOBILE SCALING MAGIC ---
 	// Mobile screens have high DPI. We need to scale everything up.
 	// In a real app, you would load a TTF font at a large size (e.g., 48px).
 	// For this demo, we scale the style and the font render.
 	float scale_factor =
-		  3.0f; // Adjust this based on screen density (2.0 to 4.0 usually)
+		  SDL_GetWindowDisplayScale(window);
 	ImGui::GetStyle().ScaleAllSizes(scale_factor);
 	io.FontGlobalScale = scale_factor;
-#endif
 	// ----------------------------
 
 	// setup Platform/Renderer backends
