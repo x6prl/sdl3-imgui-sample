@@ -18,8 +18,11 @@ extern "C" SDL_AppResult ui_event(AppContext *ctx, SDL_Event *event) {
 	// On mobile, the "Back" button usually sends a KeyDown/KeyUp for
 	// SDL_SCANCODE_AC_BACK
 	if (event->type == SDL_EVENT_KEY_DOWN &&
-	    event->key.scancode == SDL_SCANCODE_AC_BACK) {
-		ctx->app_quit = SDL_APP_SUCCESS; // Exit app on back button
+	    (event->key.scancode == SDL_SCANCODE_AC_BACK ||
+	     event->key.key == SDLK_AC_BACK)) {
+		if (!ImGui::GetIO().WantTextInput) {
+			ctx->app_quit = SDL_APP_SUCCESS; // Exit app on back button
+		}
 	}
 	return SDL_APP_CONTINUE;
 }

@@ -1,5 +1,6 @@
 #include "SDL3/SDL_events.h"
 #include "SDL3/SDL_log.h"
+#include "SDL3/SDL_timer.h"
 #include "SDL3/SDL_video.h"
 #include <cstdio>
 #include <string>
@@ -201,13 +202,19 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
 	ImGui::StyleColorsLight();
 
 	// --- MOBILE SCALING MAGIC ---
-	// Mobile screens have high DPI. We need to scale everything up.
-	// In a real app, you would load a TTF font at a large size (e.g., 48px).
-	// For this demo, we scale the style and the font render.
-	float scale_factor =
-		  SDL_GetWindowDisplayScale(window);
-	ImGui::GetStyle().ScaleAllSizes(scale_factor);
-	io.FontGlobalScale = scale_factor;
+	// Mobile screens have high DPI. Scale style and fonts using display content
+	// scale.
+	constexpr float DEFAULT_SCALE_FACTOR = 1.0f;
+	const SDL_DisplayID display_id = SDL_GetDisplayForWindow(window);
+	float scale_factor = (display_id != 0)
+	                           ? SDL_GetDisplayContentScale(display_id)
+	                           : DEFAULT_SCALE_FACTOR;
+	if (scale_factor <= 0.f) {
+		scale_factor = DEFAULT_SCALE_FACTOR;
+	}
+	ImGuiStyle &style = ImGui::GetStyle();
+	style.ScaleAllSizes(scale_factor);
+	style.FontScaleDpi = scale_factor;
 	// ----------------------------
 
 	// setup Platform/Renderer backends
@@ -242,10 +249,14 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
 // NOTE: When "waitevent" is set, this callback is only called _after_
 // SDL_AppEvent https://wiki.libsdl.org/SDL3/SDL_HINT_MAIN_CALLBACK_RATE
 SDL_AppResult SDL_AppIterate(void *appstate) {
-	// SDL_Log(__PRETTY_FUNCTION__);
-	auto *app = (AppContext *)appstate;
-
-	return ui_iterate(app);
+	static uint64_t last_tick;
+	auto tick = SDL_GetTicks();
+	if ((tick - last_tick) > 4) {
+		last_tick = tick;
+		auto *app = (AppContext *)appstate;
+		return ui_iterate(app);
+	}
+	return SDL_APP_CONTINUE;
 }
 
 void SDL_AppQuit(void *appstate, SDL_AppResult result) {
